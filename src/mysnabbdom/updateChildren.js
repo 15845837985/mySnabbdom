@@ -1,5 +1,6 @@
 import patchVnode from "./patchVnode";
 import createElement from "./createElement";
+import patch from "./patch";
 
 // 判断是否是同一节点
 function checkSameVnode(a, b) {
@@ -26,13 +27,23 @@ export default function updatedChildren(parentElm, oldCh, newCh) {
     //新前节点
     let newEndVnode = newCh[newEndIdx];
     //新后节点
+    let keyMap = null
     console.log(oldStartVnode, '旧前节点');
     console.log(oldEndVnode, '旧后节点');
     console.log(newStartVnode, '新前节点');
     console.log(newEndVnode, '新后节点');
     // 循环条件
     while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
-        if (checkSameVnode(newStartVnode, oldStartVnode)) {
+        // 首先需要略过标记为undefined的节点
+        if (oldStartVnode == null || oldCh[oldStartIdx] == undefined) {
+            oldStartVnode = oldCh[++oldStartIdx];
+        } else if (oldEndVnode == null || oldCh[oldEndIdx] == undefined) {
+            oldEndVnode = oldCh[--oldEndIdx];
+        } else if (newStartVnode == null || newCh[newStartIdx] == undefined) {
+            newStartVnode = newCh[++newStartIdx];
+        } else if (newEndVnode == null || newCh[newEndIdx] == undefined) {
+            newEndVnode = newCh[--newEndIdx]
+        } else if (checkSameVnode(newStartVnode, oldStartVnode)) {
             // 新前旧前命中
             patchVnode(newStartVnode, oldStartVnode);
             newStartVnode = newCh[++newStartIdx];
@@ -57,21 +68,51 @@ export default function updatedChildren(parentElm, oldCh, newCh) {
             newStartVnode = newCh[++newEndIdx];
             oldEndVnode = oldCh[--oldStartIdx];
         } else {
+            // 四种都没有命中
+            // 设置一个映射对象keyMap，避免每次循环遍历oldCh
+            if (!keyMap) {
+                keyMap = {}
+                // 从oldStartInx开始到oldEndIdx结束，创建keyMap
+                for (let i = oldStartIdx; i <= oldEndIdx; i++) {
+                    const key = oldCh[i].key
+                    if (key) {
+                        keyMap[key] = i
+                    }
+                }
+            }
+            console.log(keyMap);
+            const idxInOld = keyMap[newStartVnode.key]
+            console.log(idxInOld);
+            if (!idxInOld) {
+                //如果idxInOld是undefined表示它是全新的
+                // 被加入的项（newStartVnode）此时还不是dom节点
+                parentElm.insertBefore(createElement(newStartVnode), oldEndVnode.elm)
+            } else {
+                //如果不是undefined，不是全新的，需要移动
+                const elmToMove = oldCh[idxInOld];
+                patchVnode(elmToMove, newStartVnode);
+                //把这一项设置为undefined
+                oldCh[idxInOld] = undefined;
+                parentElm.insertBefore(elmToMove.elm, oldStartVnode.elm)
+            }
+            newStartVnode = newCh[++newStartIdx]
 
         }
     }
 
     // 继续查看节点是否有剩余 循环结束了start还是比end小
     if (newStartIdx <= newEndIdx) {
-        //new还有剩余节点没处理
-        const before = newCh[newEndIdx + 1] == null ? null : newCh[newEndIdx + 1].elm;
+        //new还有剩余节点没处理 要加项
+        // 遍历newCh，添加到oldCh未处理节点之前
         for (let i = newStartIdx; i <= newEndIdx; i++) {
-            parentElm.insertBefore(createElement(newCh[i]), before);
+            parentElm.insertBefore(createElement(newCh[i]), oldCh[oldStartIdx].elm);
         }
     } else if (oldStartIdx <= oldEndIdx) {
-        //old还有剩余节点没处理
+        //old还有剩余节点没处理 要删项
         for (let i = oldStartIdx; i <= oldEndIdx; i++) {
-            parentElm.removeChild(oldCh[i].elm)
+            if (oldCh[i]) {
+                parentElm.removeChild(oldCh[i].elm)
+            }
         }
     }
 
