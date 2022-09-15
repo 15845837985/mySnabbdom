@@ -1,2 +1,2 @@
 # mySnabbdom
-vue源码diff算法之手写mySnabbdom
+vue源码diff算法之手写mySnabbdom，代码在master分支
